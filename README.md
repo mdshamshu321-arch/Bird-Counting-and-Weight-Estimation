@@ -1,8 +1,6 @@
 # Bird-Counting-and-Weight-Estimation
 
-This repository contains a working prototype developed for the
-Machine Learning / AI Engineer Internship technical assignment at
-Kuppismart Solutions (Livestockify).
+This repository presents a working prototype that analyzes poultry farm CCTV video to automatically estimate bird counts over time and provide a visual indicator of bird size. Using footage from a fixed camera, the system processes video frames to identify and track birds, generates an annotated output video, and summarizes count trends in a simple and understandable way. The focus of this project is on demonstrating a complete, practical workflow—from video input to meaningful insights—while accounting for real-world conditions commonly found in poultry farms.
 
 ## Task Objective
 
