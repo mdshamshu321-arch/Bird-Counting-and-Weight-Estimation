@@ -12,6 +12,7 @@ The system processes fixed-camera poultry CCTV footage to produce:
 2. **Bird Weight Estimation** using a visual size-based proxy derived from bounding box area.
 
 ## Approach (Brief)
+<img width="1875" height="1117" alt="Method" src="https://github.com/user-attachments/assets/fa70b97c-9400-4fe6-8052-b3c3091dae2a" />
 
 - Birds are detected in each frame using a YOLO-based model.
 - SORT tracking is applied to maintain consistent IDs across frames.
@@ -29,6 +30,7 @@ This project uses the **Chicken Detection and Tracking** dataset from Roboflow
 (Public Domain), suitable for poultry detection and tracking tasks.
 
 ## Output
+<img width="1536" height="1024" alt="Detection" src="https://github.com/user-attachments/assets/d1c81b8c-0954-4106-86a1-c0cc55a94a88" />
 
 - Annotated video with tracking IDs
 - Frame-wise bird counts
