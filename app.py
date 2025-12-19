@@ -1,150 +1,89 @@
 import streamlit as st
 import cv2
-import os
-import uuid
 import numpy as np
-import random
+import tempfile
 
-# ------------------ STREAMLIT SETUP ------------------
-st.set_page_config(page_title="Bird Analytics Demo", layout="wide")
+st.set_page_config(page_title="Poultry Analytics (No YOLO)", layout="wide")
+st.title("Poultry Detection – Classical CV (VS Code)")
 
-st.title("Bird Counting & Weight Estimation (Prototype)")
-st.write(
-    "Prototype demonstrating bird counting over time and relative weight "
-    "estimation using bounding box area. Detection is mocked for demo purposes."
-)
+uploaded = st.file_uploader("Upload poultry video", type=["mp4", "avi"])
 
-# ------------------ DIRECTORIES ------------------
-UPLOAD_DIR = "uploads"
-OUTPUT_DIR = "outputs"
-os.makedirs(UPLOAD_DIR, exist_ok=True)
-os.makedirs(OUTPUT_DIR, exist_ok=True)
+# ---------------- SIMPLE TRACKER ----------------
+next_id = 0
+objects = {}
 
-# ------------------ SIMPLE TRACKER ------------------
-class SimpleTracker:
-    def __init__(self):
-        self.next_id = 1
+def assign_id(cx, cy):
+    global next_id
+    for oid, (ox, oy) in objects.items():
+        if abs(cx - ox) < 60 and abs(cy - oy) < 60:
+            objects[oid] = (cx, cy)
+            return oid
+    objects[next_id] = (cx, cy)
+    next_id += 1
+    return next_id - 1
 
-    def update(self, detections):
-        tracks = []
-        for det in detections:
-            x1, y1, x2, y2 = det
-            tracks.append([x1, y1, x2, y2, self.next_id])
-            self.next_id += 1
-        return tracks
+AVG_CHICKEN_AREA = 1800  # relative calibration
 
-tracker = SimpleTracker()
+if uploaded:
+    temp = tempfile.NamedTemporaryFile(delete=False)
+    temp.write(uploaded.read())
 
-# ------------------ MOCK DETECTION ------------------
-def mock_bird_detection(frame):
-    """
-    Simulates bird detections.
-    Returns random bounding boxes.
-    """
-    h, w, _ = frame.shape
-    detections = []
+    cap = cv2.VideoCapture(temp.name)
+    fgbg = cv2.createBackgroundSubtractorMOG2(history=300, varThreshold=50)
 
-    num_birds = random.randint(2, 5)
-    for _ in range(num_birds):
-        x1 = random.randint(0, w - 150)
-        y1 = random.randint(0, h - 150)
-        x2 = x1 + random.randint(60, 140)
-        y2 = y1 + random.randint(60, 140)
-        detections.append([x1, y1, x2, y2])
+    frame_box = st.empty()
 
-    return detections
+    while cap.isOpened():
+        ret, frame = cap.read()
+        if not ret:
+            break
 
-# ------------------ FILE UPLOAD ------------------
-uploaded_video = st.file_uploader(
-    "Upload poultry CCTV video (.mp4)",
-    type=["mp4"]
-)
+        fgmask = fgbg.apply(frame)
+        fgmask = cv2.medianBlur(fgmask, 7)
 
-if uploaded_video:
-    input_path = os.path.join(UPLOAD_DIR, uploaded_video.name)
-    with open(input_path, "wb") as f:
-        f.write(uploaded_video.read())
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5,5))
+        fgmask = cv2.morphologyEx(fgmask, cv2.MORPH_OPEN, kernel)
 
-    st.success("Video uploaded successfully")
-
-    if st.button("Analyze Video"):
-        cap = cv2.VideoCapture(input_path)
-
-        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        fps = cap.get(cv2.CAP_PROP_FPS)
-
-        output_path = os.path.join(
-            OUTPUT_DIR, f"annotated_{uuid.uuid4().hex}.mp4"
+        contours, _ = cv2.findContours(
+            fgmask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
         )
 
-        out = cv2.VideoWriter(
-            output_path,
-            cv2.VideoWriter_fourcc(*"mp4v"),
-            fps,
-            (width, height)
-        )
+        live_count = 0
 
-        frame_count = 0
-        weight_index_data = {}
+        for c in contours:
+            area = cv2.contourArea(c)
+            if area < 900 or area > 15000:
+                continue
 
-        progress = st.progress(0)
-        status = st.empty()
+            x, y, w, h = cv2.boundingRect(c)
+            cx, cy = x + w//2, y + h//2
 
-        while True:
-            ret, frame = cap.read()
-            if not ret:
-                break
+            obj_id = assign_id(cx, cy)
+            weight_index = round((w * h) / AVG_CHICKEN_AREA, 2)
 
-            detections = mock_bird_detection(frame)
-            tracks = tracker.update(detections)
-            bird_count = len(tracks)
+            live_count += 1
 
-            for track in tracks:
-                x1, y1, x2, y2, track_id = track
-                area = (x2 - x1) * (y2 - y1)
-                weight_index = round(area / 1000, 2)
-                weight_index_data[track_id] = weight_index
-
-                cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                cv2.putText(
-                    frame,
-                    f"ID:{track_id} W:{weight_index}",
-                    (x1, y1 - 8),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.6,
-                    (255, 0, 0),
-                    2
-                )
-
+            cv2.rectangle(frame, (x,y), (x+w,y+h), (0,255,0), 1)
             cv2.putText(
                 frame,
-                f"Bird Count: {bird_count}",
-                (20, 40),
+                f"ID:{obj_id} W:{weight_index}",
+                (x, y-6),
                 cv2.FONT_HERSHEY_SIMPLEX,
-                1,
-                (0, 0, 255),
+                0.5,
+                (255,255,0),
                 2
             )
 
-            out.write(frame)
-            frame_count += 1
-
-            progress.progress(min(frame_count % 100 / 100, 1.0))
-            status.text(f"Processing frame {frame_count}")
-
-        cap.release()
-        out.release()
-
-        st.success("Analysis completed")
-
-        st.subheader("Annotated Output Video")
-        st.video(output_path)
-
-        st.subheader("Relative Weight Index (Proxy)")
-        st.json(weight_index_data)
-
-        st.info(
-            "NOTE: Bird detection is mocked for local demo. "
-            "In production, YOLO-based detection runs in a Linux environment."
+        cv2.putText(
+            frame,
+            f"Live Count: {live_count}",
+            (20,40),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            1,
+            (0,0,255),
+            2
         )
+
+        frame_box.image(frame, channels="BGR")
+
+    cap.release()
