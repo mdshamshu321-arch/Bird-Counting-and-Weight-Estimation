@@ -33,3 +33,7 @@ This project uses the **Chicken Detection and Tracking** dataset from Roboflow
 - Annotated video with tracking IDs
 - Frame-wise bird counts
 - Relative weight proxy per bird
+
+
+https://github.com/user-attachments/assets/a86f4170-91e1-4571-9d83-79c8f5216d1a
+
